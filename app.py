@@ -3,128 +3,176 @@ import folium
 from streamlit_folium import st_folium
 from geopy.distance import geodesic
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(page_title="Nirbhaya-Path", page_icon="🛡️", layout="wide")
-
-# ---------------- HEADER ----------------
-st.markdown("""
-<h1 style="text-align:center;">🛡️ Nirbhaya-Path</h1>
-<h4 style="text-align:center; color:gray;">
-Safe Route Navigation Prototype (APS Shah → Thane Station)
-</h4>
-<hr>
-""", unsafe_allow_html=True)
-
-# ---------------- FIXED LOCATIONS ----------------
-start = (19.2506, 72.8745)   # APS Shah
-end = (19.1860, 72.9759)     # Thane Station
-
-# ---------------- ROUTES (SIMULATED) ----------------
-safe_route = [
-    start,
-    (19.2350, 72.9000),
-    (19.2200, 72.9300),
-    (19.2050, 72.9550),
-    end
-]
-
-unsafe_route = [
-    start,
-    (19.2400, 72.8900),
-    (19.2250, 72.9150),
-    (19.2100, 72.9400),
-    end
-]
-
-safe_distance = round(geodesic(start, end).km + 2.5, 2)
-unsafe_distance = round(geodesic(start, end).km, 2)
-
-# ---------------- SIDEBAR ----------------
-st.sidebar.markdown("## 🧭 Route Options")
-
-route_choice = st.sidebar.radio(
-    "Choose Route Type",
-    ["Safest Route (Recommended)", "Less Safe Route"]
+# ---------------- CONFIG ----------------
+st.set_page_config(
+    page_title="Nirbhaya-Path",
+    page_icon="🛡️",
+    layout="centered"   # mobile feel
 )
 
-st.sidebar.markdown("### 🚨 Emergency")
-if st.sidebar.button("SOS"):
-    st.sidebar.error("🚨 SOS Triggered (Prototype)")
-    st.sidebar.write("Alert sent to nearby authorities.")
+# ---------------- THEME ----------------
+st.markdown("""
+<style>
+.main { background-color: #0b0b0b; }
+h1, h2, h3, h4, h5, p, label { color: #f5c518; }
+div[data-testid="stMetric"] {
+    background-color: #111;
+    padding: 10px;
+    border-radius: 10px;
+}
+</style>
+""", unsafe_allow_html=True)
+
+# ---------------- SESSION ----------------
+for key in ["logged", "user", "start", "end"]:
+    if key not in st.session_state:
+        st.session_state[key] = None
+
+# ---------------- LOGIN / REGISTER ----------------
+def auth_page():
+    st.markdown("<h2 style='text-align:center;'>🔐 Nirbhaya-Path</h2>", unsafe_allow_html=True)
+    st.caption("Register or Login to continue")
+
+    name = st.text_input("Full Name")
+    email = st.text_input("Email")
+    phone = st.text_input("Mobile Number")
+    city = st.text_input("City")
+
+    if st.button("Register / Login"):
+        if name and email and phone and city:
+            st.session_state.logged = True
+            st.session_state.user = name
+            st.success("Login Successful")
+        else:
+            st.error("Please fill all details")
+
+if not st.session_state.logged:
+    auth_page()
+    st.stop()
+
+# ---------------- SIDEBAR (HAMBURGER MENU) ----------------
+menu = st.sidebar.radio(
+    "☰ Menu",
+    [
+        "🏠 Dashboard",
+        "🧭 Find Safe Route",
+        "🚨 SOS",
+        "📝 Feedback",
+        "📢 Complaints",
+        "ℹ️ About"
+    ]
+)
 
 st.sidebar.markdown("---")
-st.sidebar.markdown("### 📝 Feedback")
-st.sidebar.text_area("Your feedback")
+st.sidebar.caption(f"👤 {st.session_state.user}")
 
-# ---------------- MAIN LAYOUT ----------------
-col1, col2 = st.columns([2, 1])
+# ---------------- DASHBOARD ----------------
+if menu == "🏠 Dashboard":
+    st.subheader("🛡️ Safety Dashboard")
 
-# ---------------- MAP ----------------
-with col1:
-    st.subheader("🗺️ Route Visualization")
+    st.metric("User Status", "Protected")
+    st.metric("Last Safety Score", "—")
+    st.metric("Emergency Ready", "YES")
 
-    m = folium.Map(location=start, zoom_start=12, tiles="CartoDB positron")
+    st.info("Use **Find Safe Route** to start navigation.")
 
-    folium.Marker(start, popup="APS Shah Institute", icon=folium.Icon(color="green")).add_to(m)
-    folium.Marker(end, popup="Thane Railway Station", icon=folium.Icon(color="red")).add_to(m)
+# ---------------- SAFE ROUTE ----------------
+elif menu == "🧭 Find Safe Route":
+    st.subheader("🧭 Enter Coordinates")
 
-    # Safety markers
-    folium.Marker((19.2350, 72.9000), popup="24×7 Medical Store", icon=folium.Icon(color="blue")).add_to(m)
-    folium.Marker((19.2200, 72.9300), popup="Crowded Market Area", icon=folium.Icon(color="blue")).add_to(m)
-    folium.Marker((19.2050, 72.9550), popup="Police Station Nearby", icon=folium.Icon(color="blue")).add_to(m)
+    start_lat = st.number_input("Start Latitude", value=19.2506, format="%.6f")
+    start_lon = st.number_input("Start Longitude", value=72.8745, format="%.6f")
 
-    if route_choice == "Safest Route (Recommended)":
-        folium.PolyLine(
-            safe_route,
-            color="green",
-            weight=6,
-            tooltip="Safest Route"
-        ).add_to(m)
-    else:
-        folium.PolyLine(
-            unsafe_route,
-            color="red",
-            weight=6,
-            tooltip="Less Safe Route"
-        ).add_to(m)
+    end_lat = st.number_input("Destination Latitude", value=19.1860, format="%.6f")
+    end_lon = st.number_input("Destination Longitude", value=72.9759, format="%.6f")
 
-    st_folium(m, height=520, width=900)
+    if st.button("📍 Set Locations"):
+        st.session_state.start = (start_lat, start_lon)
+        st.session_state.end = (end_lat, end_lon)
+        st.success("Locations set successfully")
 
-# ---------------- INFO PANEL ----------------
-with col2:
-    st.subheader("📊 Route Details")
+    if st.session_state.start and st.session_state.end:
+        # Simulated routes
+        safe_route = [
+            st.session_state.start,
+            ((start_lat+end_lat)/2 + 0.01, (start_lon+end_lon)/2),
+            st.session_state.end
+        ]
+        unsafe_route = [
+            st.session_state.start,
+            ((start_lat+end_lat)/2 - 0.01, (start_lon+end_lon)/2 - 0.01),
+            st.session_state.end
+        ]
 
-    if route_choice == "Safest Route (Recommended)":
-        st.success("🟢 SAFEST ROUTE SELECTED")
-        st.metric("Safety Score", "85 / 100")
-        st.metric("Distance", f"{safe_distance} km")
-        st.markdown("""
-        ✔️ Well-lit roads  
-        ✔️ 24×7 shops nearby  
-        ✔️ Crowded areas  
-        ✔️ Police access  
-        """)
-    else:
-        st.warning("🔴 LESS SAFE ROUTE")
-        st.metric("Safety Score", "48 / 100")
-        st.metric("Distance", f"{unsafe_distance} km")
-        st.markdown("""
-        ⚠️ Isolated roads  
-        ⚠️ Fewer shops  
-        ⚠️ Low activity areas  
-        """)
+        distance = round(geodesic(st.session_state.start, st.session_state.end).km, 2)
+        time = round(distance / 30 * 60, 1)  # minutes
+        safety_score = max(100 - int(distance * 3), 45)
 
-    st.markdown("---")
-    st.info("""
-    Safety scores are calculated using:
-    - Distance
-    - Area activity
-    - Infrastructure presence
-    - Time-based risk (prototype logic)
+        if st.button("🛡️ Find Safest Route"):
+            st.subheader("🗺️ Route Comparison")
+
+            m = folium.Map(location=st.session_state.start, zoom_start=12)
+
+            folium.Marker(st.session_state.start, popup="Start", icon=folium.Icon(color="green")).add_to(m)
+            folium.Marker(st.session_state.end, popup="Destination", icon=folium.Icon(color="red")).add_to(m)
+
+            # Safe route
+            folium.PolyLine(safe_route, color="green", weight=6, tooltip="Safest Route").add_to(m)
+            folium.PolyLine(unsafe_route, color="red", weight=4, tooltip="Less Safe Route").add_to(m)
+
+            # Safety markers
+            folium.Marker(safe_route[1], popup="24×7 Shop", icon=folium.Icon(color="blue")).add_to(m)
+            folium.Marker((safe_route[1][0]+0.005, safe_route[1][1]), popup="Crowded Area", icon=folium.Icon(color="purple")).add_to(m)
+            folium.Marker((safe_route[1][0]-0.005, safe_route[1][1]), popup="Police Station", icon=folium.Icon(color="cadetblue")).add_to(m)
+
+            st_folium(m, height=450, width=350)
+
+            st.metric("Safety Score", f"{safety_score}/100")
+            st.metric("Distance", f"{distance} km")
+            st.metric("Approx Time", f"{time} mins")
+
+# ---------------- SOS ----------------
+elif menu == "🚨 SOS":
+    st.subheader("🚨 Emergency Assistance")
+
+    st.error("Press only in real emergency (Prototype)")
+    if st.button("ACTIVATE SOS"):
+        st.error("🚨 SOS ACTIVATED")
+        st.write("• Emergency contacts notified")
+        st.write("• Nearest police alerted")
+        st.write("• Location shared")
+
+# ---------------- FEEDBACK ----------------
+elif menu == "📝 Feedback":
+    st.subheader("📝 User Feedback")
+    feedback = st.text_area("Your experience")
+    if st.button("Submit"):
+        st.success("Thank you for helping us improve")
+
+# ---------------- COMPLAINTS ----------------
+elif menu == "📢 Complaints":
+    st.subheader("📢 Safety Complaint")
+    st.text_input("Location")
+    st.text_area("Describe incident")
+    if st.button("Register Complaint"):
+        st.success("Complaint registered (Prototype)")
+
+# ---------------- ABOUT ----------------
+elif menu == "ℹ️ About":
+    st.subheader("ℹ️ About Nirbhaya-Path")
+    st.markdown("""
+    **Nirbhaya-Path** is a women-safety focused navigation prototype.
+
+    ### Features
+    - Safe route prioritization
+    - Emergency SOS
+    - Community safety markers
+    - Mobile-first design
+
+    ### Technology
+    - OpenStreetMap
+    - Streamlit
+    - Planned: OSMnx + NetworkX
     """)
 
-# ---------------- FOOTER ----------------
-st.caption("""
-Prototype built using OpenStreetMap.
-Future implementation uses OSMnx + NetworkX for real graph-based routing.
-""")
+st.caption("⚠️ Prototype for academic evaluation only")
