@@ -3,157 +3,139 @@ import folium
 from streamlit_folium import st_folium
 from geopy.distance import geodesic
 
-# ---------------- PAGE CONFIG ----------------
-st.set_page_config(
-    page_title="Nirbhaya-Path",
-    page_icon="🛡️",
-    layout="wide"
-)
+# ---------------- CONFIG ----------------
+st.set_page_config(page_title="Nirbhaya-Path", page_icon="🛡️", layout="wide")
 
-# ---------------- CUSTOM CSS ----------------
-st.markdown("""
-<style>
-.main {
-    background-color: #0e1117;
-}
-h1, h2, h3, h4, h5 {
-    color: #f1f1f1;
-}
-.metric-card {
-    background-color: #1c1f26;
-    padding: 20px;
-    border-radius: 12px;
-    text-align: center;
-}
-</style>
-""", unsafe_allow_html=True)
+# ---------------- SESSION INIT ----------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
+if "user" not in st.session_state:
+    st.session_state.user = None
+if "start" not in st.session_state:
+    st.session_state.start = None
+if "end" not in st.session_state:
+    st.session_state.end = None
+
+# ---------------- AUTH ----------------
+def login_ui():
+    st.subheader("🔐 Login / Register")
+    name = st.text_input("Name")
+    email = st.text_input("Email")
+
+    if st.button("Login / Register"):
+        if name and email:
+            st.session_state.logged_in = True
+            st.session_state.user = name
+            st.success("Logged in successfully")
+        else:
+            st.error("Please enter details")
 
 # ---------------- HEADER ----------------
 st.markdown("""
 <h1 style="text-align:center;">🛡️ Nirbhaya-Path</h1>
-<h4 style="text-align:center; color:#9aa0a6;">
-AI-Driven Safe Route Navigation (Prototype)
-</h4>
-<p style="text-align:center; color:#6c757d;">
-SDG-5 • SDG-11 • Women Safety • Smart Cities
+<p style="text-align:center;color:gray;">
+AI-Driven Safe Route Navigation • SDG-5 • SDG-11
 </p>
 <hr>
 """, unsafe_allow_html=True)
 
+# ---------------- LOGIN CHECK ----------------
+if not st.session_state.logged_in:
+    login_ui()
+    st.stop()
+
 # ---------------- SIDEBAR ----------------
-st.sidebar.markdown("## ⚙️ Route Settings")
-
-start_lat = st.sidebar.number_input("📍 Start Latitude", value=28.6139, format="%.6f")
-start_lon = st.sidebar.number_input("📍 Start Longitude", value=77.2090, format="%.6f")
-
-end_lat = st.sidebar.number_input("🏁 Destination Latitude", value=28.7041, format="%.6f")
-end_lon = st.sidebar.number_input("🏁 Destination Longitude", value=77.1025, format="%.6f")
-
+st.sidebar.markdown(f"### 👤 Welcome, {st.session_state.user}")
 time_mode = st.sidebar.selectbox("🕒 Time of Travel", ["Day", "Night"])
-user_type = st.sidebar.selectbox("👤 User Type", ["Student", "Working Professional", "General"])
 
-generate = st.sidebar.button("🚦 Generate Safest Route")
+if st.sidebar.button("🚨 SOS"):
+    st.sidebar.error("🚨 SOS ACTIVATED")
+    st.sidebar.write("Emergency alert sent to nearby authorities (prototype).")
 
-# ---------------- MAIN TABS ----------------
-tab1, tab2, tab3 = st.tabs(["🗺️ Route Map", "📊 Safety Analysis", "ℹ️ About"])
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 📝 Feedback")
+feedback = st.sidebar.text_area("Your feedback")
+if st.sidebar.button("Submit Feedback"):
+    st.sidebar.success("Thank you for your feedback!")
 
-# ---------------- ROUTE LOGIC ----------------
-start = (start_lat, start_lon)
-end = (end_lat, end_lon)
-distance_km = round(geodesic(start, end).km, 2)
+# ---------------- MAIN ----------------
+tabs = st.tabs(["🗺️ Map & Route", "📊 Safety Layers", "📸 Camera", "ℹ️ About"])
 
-# Simulated AI safety logic
-risk = 0
-risk += 20 if time_mode == "Night" else 5
-risk += 10 if distance_km > 10 else 5
-risk += 5 if user_type == "Student" else 10
+# ---------------- MAP TAB ----------------
+with tabs[0]:
+    st.subheader("🗺️ Select Start & Destination")
 
-safety_score = max(100 - risk, 30)
+    m = folium.Map(location=[28.6139, 77.2090], zoom_start=12, tiles="CartoDB positron")
 
-# ---------------- TAB 1: MAP ----------------
-with tab1:
-    st.subheader("🗺️ Safe Route Visualization")
+    # Demo safety layers
+    folium.Marker([28.616, 77.210], popup="24x7 Shop", icon=folium.Icon(color="green")).add_to(m)
+    folium.Marker([28.620, 77.215], popup="Crowded Area", icon=folium.Icon(color="blue")).add_to(m)
+    folium.Marker([28.608, 77.200], popup="Unsafe Zone", icon=folium.Icon(color="red")).add_to(m)
 
-    m = folium.Map(
-        location=start,
-        zoom_start=12,
-        tiles="CartoDB dark_matter"
-    )
+    map_data = st_folium(m, height=500, width=1200)
 
-    folium.Marker(
-        start,
-        popup="Start Location",
-        icon=folium.Icon(color="green", icon="play")
-    ).add_to(m)
+    if map_data and map_data.get("last_clicked"):
+        lat = map_data["last_clicked"]["lat"]
+        lon = map_data["last_clicked"]["lng"]
 
-    folium.Marker(
-        end,
-        popup="Destination",
-        icon=folium.Icon(color="red", icon="flag")
-    ).add_to(m)
+        if st.session_state.start is None:
+            st.session_state.start = (lat, lon)
+            st.success("Start point selected")
+        else:
+            st.session_state.end = (lat, lon)
+            st.success("Destination selected")
 
-    folium.PolyLine(
-        locations=[start, end],
-        tooltip="Safest Route (Prototype)",
-        color="#00ff9c",
-        weight=6
-    ).add_to(m)
+    if st.session_state.start and st.session_state.end:
+        distance = round(geodesic(st.session_state.start, st.session_state.end).km, 2)
 
-    st_folium(m, width=1200, height=520)
+        risk = 20 if time_mode == "Night" else 8
+        safety_score = max(100 - risk - int(distance), 40)
 
-# ---------------- TAB 2: SAFETY DASHBOARD ----------------
-with tab2:
-    st.subheader("📊 Safety Dashboard")
+        if st.button("🛡️ Find Safest Route"):
+            route_map = folium.Map(location=st.session_state.start, zoom_start=13)
 
-    col1, col2, col3 = st.columns(3)
+            folium.Marker(st.session_state.start, popup="Start", icon=folium.Icon(color="green")).add_to(route_map)
+            folium.Marker(st.session_state.end, popup="End", icon=folium.Icon(color="red")).add_to(route_map)
 
-    with col1:
-        st.markdown(
-            f"<div class='metric-card'><h2>{safety_score}/100</h2><p>Safety Score</p></div>",
-            unsafe_allow_html=True
-        )
+            folium.PolyLine(
+                [st.session_state.start, st.session_state.end],
+                color="blue",
+                weight=6,
+                tooltip="Safest Route (Prototype)"
+            ).add_to(route_map)
 
-    with col2:
-        st.markdown(
-            f"<div class='metric-card'><h2>{distance_km} km</h2><p>Route Distance</p></div>",
-            unsafe_allow_html=True
-        )
+            st_folium(route_map, height=500, width=1200)
 
-    with col3:
-        level = "High" if safety_score > 70 else "Medium" if safety_score > 50 else "Low"
-        st.markdown(
-            f"<div class='metric-card'><h2>{level}</h2><p>Risk Level</p></div>",
-            unsafe_allow_html=True
-        )
+            st.info(f"🛡️ Safety Score: {safety_score}/100")
 
-    st.markdown("### 🤖 AI Safety Explanation")
-
-    if time_mode == "Night":
-        st.info(
-            "This route was selected to minimize exposure to isolated and poorly lit areas. "
-            "Night-time risk penalties were applied, prioritizing main roads and public zones."
-        )
-    else:
-        st.info(
-            "Day-time routing focuses on balanced safety and accessibility using low-risk road segments."
-        )
-
-# ---------------- TAB 3: ABOUT ----------------
-with tab3:
-    st.subheader("ℹ️ About Nirbhaya-Path")
-
+# ---------------- SAFETY LAYERS ----------------
+with tabs[1]:
+    st.subheader("📊 Safety Indicators Used")
     st.markdown("""
-**Nirbhaya-Path** is an AI-assisted safe route navigation prototype designed
-to prioritize user safety over speed.
+    - ✔️ 24×7 Shops & Medical Stores  
+    - ✔️ Crowded / Active Areas  
+    - ✔️ Time of Travel  
+    - ✔️ Distance & Isolation  
+    """)
+    st.warning("Live data integration via OSMnx & NetworkX is planned.")
 
-### 🔧 Planned Full Implementation
-- **OSMnx** → Extract real street networks from OpenStreetMap  
-- **NetworkX** → Graph-based routing (Dijkstra / A*)  
-- **AI Models** → Dynamic risk prediction  
-- **Mobile GPS** → Real-time location  
+# ---------------- CAMERA ----------------
+with tabs[2]:
+    st.subheader("📸 Capture / Upload Evidence")
+    image = st.file_uploader("Upload image (Camera Prototype)", type=["jpg", "png"])
+    if image:
+        st.image(image, caption="Uploaded Image")
 
-⚠️ Current version uses simulated logic for academic demonstration.
-""")
+# ---------------- ABOUT ----------------
+with tabs[3]:
+    st.markdown("""
+    **Nirbhaya-Path** is a prototype designed for academic evaluation.
 
-st.markdown("---")
-st.caption("Mini Project • Software Engineering • AI-Assisted Prototype • College Panel Demo")
+    ### 🔧 Future Scope
+    - Real GPS location
+    - OSMnx street graph extraction
+    - NetworkX safest-path algorithms
+    - Real SOS & authority integration
+    """)
+
+st.caption("Mini Project • AI-Assisted Prototype • College Panel Demo")
